@@ -17,10 +17,12 @@ import { AddShareScopePage } from '../pages/sharing/AddShareScopePage'
 import { AddShareTermsPage } from '../pages/sharing/AddShareTermsPage'
 import { AddShareConsentPage } from '../pages/sharing/AddShareConsentPage'
 
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 export function App() {
   return (
     <HealthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename || undefined}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/healthcare" element={<HealthcareHubPage />} />
