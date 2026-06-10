@@ -1,0 +1,122 @@
+/* NHS login button — per https://nhsconnect.github.io/nhslogin/button-guidance/ */
+/* Version: websites or apps that do not use the NHS logo */
+
+.nhslogin-button {
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.5;
+  margin-bottom: 0;
+  appearance: none;
+  background-color: #005eb8;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  box-shadow: 0 4px 0 #003087;
+  box-sizing: border-box;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  margin-top: 0;
+  padding: 12px 16px;
+  position: relative;
+  text-align: center;
+  vertical-align: top;
+  width: 100%;
+}
+
+@media (min-width: 40.0625em) {
+  .nhslogin-button {
+    font-size: 19px;
+    line-height: 1.47368;
+  }
+}
+
+@media (max-width: 40.0525em) {
+  .nhslogin-button {
+    padding: 8px 16px;
+  }
+}
+
+.nhslogin-button:hover {
+  background-color: #1e569b;
+  color: #fff;
+}
+
+.nhslogin-button:focus {
+  background: #ffeb3b;
+  box-shadow: 0 4px 0 #003087;
+  color: #003087;
+  outline: none;
+}
+
+.nhslogin-button:active {
+  background: #1e569b;
+  box-shadow: none;
+  color: #fff;
+  top: 4px;
+}
+
+.nhslogin-button:disabled {
+  background-color: #005eb8;
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: default;
+}
+
+.nhslogin-button-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.button-logo {
+  padding-right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* NHS secondary button for alternative login option */
+.nhslogin-button-secondary {
+  appearance: none;
+  background-color: #fff;
+  border: 2px solid #005eb8;
+  border-radius: 4px;
+  box-shadow: 0 4px 0 #003087;
+  box-sizing: border-box;
+  color: #005eb8;
+  cursor: pointer;
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 12px 16px;
+  position: relative;
+  text-align: center;
+  width: 100%;
+}
+
+@media (min-width: 40.0625em) {
+  .nhslogin-button-secondary {
+    font-size: 19px;
+    line-height: 1.47368;
+  }
+}
+
+.nhslogin-button-secondary:hover {
+  background-color: #f2f2f2;
+}
+
+.nhslogin-button-secondary:focus {
+  background: #ffeb3b;
+  color: #003087;
+  outline: none;
+}
+
+.nhslogin-button-secondary:active {
+  background: #f2f2f2;
+  box-shadow: none;
+  top: 4px;
+}
