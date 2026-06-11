@@ -33,8 +33,8 @@ export function SharingConsentBox() {
               LPA-linked sharing follows your registered attorney arrangements in ELM.
             </li>
             <li>
-              Sharing is not suitable for emergency care — signpost recipients to NHS 111
-              or 999 when urgent help is needed.
+              Sharing is not intended for use by healthcare professionals or in a medical
+              emergency.
             </li>
           </ul>
         </div>

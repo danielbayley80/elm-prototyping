@@ -1,6 +1,7 @@
 import type { MedicalObject } from '../types/medical-object'
+import { inferSourceSystem } from '../config/source-config'
 
-export const mockMedicalRecords: MedicalObject[] = [
+const rawMedicalRecords: MedicalObject[] = [
   {
     id: 'rec-001',
     type: 'MedicationStatement',
@@ -281,4 +282,34 @@ export const mockMedicalRecords: MedicalObject[] = [
     status: 'resolved',
     source: 'EMIS Web',
   },
+  {
+    id: 'rec-021',
+    type: 'Observation',
+    what: 'Home blood glucose reading',
+    when: '2026-06-08T07:30:00Z',
+    where: 'Added by you',
+    who: 'Margaret Thompson',
+    text: 'Fasting reading before breakfast. User-reported — not from GP systems.',
+    value: '6.2 mmol/L',
+    added: '2026-06-08T07:35:00Z',
+    updated: '2026-06-08T07:35:00Z',
+    status: 'active',
+    source: 'Self reported',
+    sourceSystem: 'self',
+    details: [
+      { label: 'Provenance', value: 'Added by you' },
+      { label: 'Meal context', value: 'Fasting' },
+      { label: 'Device', value: 'Accu-Chek Guide' },
+    ],
+  },
 ]
+
+export const mockMedicalRecords: MedicalObject[] = rawMedicalRecords.map((record) => ({
+  ...record,
+  sourceSystem: record.sourceSystem ?? inferSourceSystem(record.source),
+  details:
+    record.details ??
+    (record.text
+      ? [{ label: 'Clinical note', value: record.text }]
+      : undefined),
+}))

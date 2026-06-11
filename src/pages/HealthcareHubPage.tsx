@@ -11,6 +11,9 @@ import { HealthcareConnectPrompt } from '../components/healthcare/HealthcareConn
 import { SharingStatusCard } from '../components/healthcare/SharingStatusCard'
 import { SourcesStatusCard } from '../components/healthcare/SourcesStatusCard'
 import { useHealth } from '../lib/health-context'
+import { getAppointmentsAccess, getPrimarySourceCapabilities } from '../lib/appointment-access'
+import { getPrescriptionsAccess } from '../lib/prescription-access'
+import { canOrderPrescription } from '../types/prescription'
 import { isConnected } from '../types/health-connection'
 
 export function HealthcareHubPage() {
@@ -30,8 +33,12 @@ export function HealthcareHubPage() {
     )
   }
 
+  const capabilities = getPrimarySourceCapabilities(connection.connectedSources)
+  const appointmentsAccess = getAppointmentsAccess(capabilities)
+  const prescriptionsAccess = getPrescriptionsAccess(capabilities)
+
   const upcomingCount = appointments.filter((a) => a.status === 'booked').length
-  const availableRx = prescriptions.filter((p) => p.status === 'available').length
+  const availableRx = prescriptions.filter((p) => canOrderPrescription(p)).length
 
   return (
     <HealthcarePage title="Healthcare" description="Your health dashboard">
@@ -54,27 +61,47 @@ export function HealthcareHubPage() {
           </p>
         </Link>
 
-        <Link
-          to="/healthcare/appointments"
-          className="block h-full bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:border-nhs-blue/30 transition-colors"
-        >
-          <Calendar className="h-6 w-6 text-cyan-500 mb-3" />
-          <h3 className="font-semibold text-gray-900">Appointments</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            {upcomingCount} upcoming appointment{upcomingCount !== 1 ? 's' : ''}
-          </p>
-        </Link>
+        {appointmentsAccess.available ? (
+          <Link
+            to="/healthcare/appointments"
+            className="block h-full bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:border-nhs-blue/30 transition-colors"
+          >
+            <Calendar className="h-6 w-6 text-cyan-500 mb-3" />
+            <h3 className="font-semibold text-gray-900">Appointments</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {upcomingCount} upcoming appointment{upcomingCount !== 1 ? 's' : ''}
+            </p>
+          </Link>
+        ) : (
+          <div className="h-full bg-white rounded-xl shadow-sm border border-gray-100 p-5 opacity-75">
+            <Calendar className="h-6 w-6 text-gray-300 mb-3" />
+            <h3 className="font-semibold text-gray-900">Appointments</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {appointmentsAccess.disabledReason ?? 'Not available'}
+            </p>
+          </div>
+        )}
 
-        <Link
-          to="/healthcare/prescriptions"
-          className="block h-full bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:border-nhs-blue/30 transition-colors"
-        >
-          <Pill className="h-6 w-6 text-green-500 mb-3" />
-          <h3 className="font-semibold text-gray-900">Prescriptions</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            {availableRx} repeat prescription{availableRx !== 1 ? 's' : ''} available
-          </p>
-        </Link>
+        {prescriptionsAccess.available ? (
+          <Link
+            to="/healthcare/prescriptions"
+            className="block h-full bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:border-nhs-blue/30 transition-colors"
+          >
+            <Pill className="h-6 w-6 text-green-500 mb-3" />
+            <h3 className="font-semibold text-gray-900">Prescriptions</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {availableRx} repeat prescription{availableRx !== 1 ? 's' : ''} available
+            </p>
+          </Link>
+        ) : (
+          <div className="h-full bg-white rounded-xl shadow-sm border border-gray-100 p-5 opacity-75">
+            <Pill className="h-6 w-6 text-gray-300 mb-3" />
+            <h3 className="font-semibold text-gray-900">Prescriptions</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {prescriptionsAccess.disabledReason ?? 'Not available'}
+            </p>
+          </div>
+        )}
       </div>
 
       {connection.syncPreferences.appointmentsToCalendar && (

@@ -92,7 +92,15 @@ export function SafetyWarningBox() {
         <Shield className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
         <div>
           <h3 className="font-semibold text-amber-900">Important health record information</h3>
-          <ul className="mt-2 space-y-2 text-sm text-amber-800 list-disc list-outside pl-5">
+          <p className="mt-2 text-sm text-amber-800">
+            ELM is intended as a <strong className="font-medium text-amber-900">personal record</strong>{' '}
+            for your own information and life management. It is{' '}
+            <strong className="font-medium text-amber-900">not intended for use by healthcare
+            professionals</strong>{' '}
+            and does not replace your GP record, clinical systems, or advice from a qualified
+            healthcare professional.
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-amber-800 list-disc list-outside pl-5">
             <li>
               Your GP record may contain information you have forgotten or were not told about
             </li>

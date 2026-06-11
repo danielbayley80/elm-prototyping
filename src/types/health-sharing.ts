@@ -97,8 +97,8 @@ export const featureAccessLabels: Record<FeatureAccess, string> = {
 
 export const recordVisibilityLabels: Record<RecordVisibility, string> = {
   none: 'None',
-  active: 'View',
-  all: 'Manage',
+  active: 'Current',
+  all: 'All',
 }
 
 export const shareActivationLabels: Record<ShareActivation, string> = {

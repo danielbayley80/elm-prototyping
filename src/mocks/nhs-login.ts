@@ -22,6 +22,7 @@ export const mockNhsLoginUser = {
   dateOfBirth: '1952-03-14',
   gender: 'Female',
   email: 'margaret.thompson@example.com',
+  mobilePhone: '07700900123',
 }
 
 /** Mock response from GET /patient/{patientId}/settings */
@@ -47,6 +48,10 @@ export const mockPracticeSettings = {
     medicalRecordSupported: 'yes' as const,
     repeatPrescriptionsSupported: 'yes' as const,
   },
+  inputRequirements: {
+    appointmentBookingReason: 'required' as const,
+    prescribingComment: 'optional' as const,
+  },
 }
 
 export function buildMockSourceCapabilities(
@@ -62,5 +67,6 @@ export function buildMockSourceCapabilities(
     practiceMedicalRecordSupported: practice.services.medicalRecordSupported === 'yes',
     practiceRepeatPrescriptionsSupported:
       practice.services.repeatPrescriptionsSupported === 'yes',
+    inputRequirements: { ...practice.inputRequirements },
   }
 }

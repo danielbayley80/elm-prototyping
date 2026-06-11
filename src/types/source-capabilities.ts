@@ -8,6 +8,13 @@ export interface MedicalRecordSections {
   problems: boolean
 }
 
+export type AppointmentBookingReasonRequirement = 'notRequested' | 'required' | 'optional'
+
+export interface PracticeInputRequirements {
+  appointmentBookingReason: AppointmentBookingReasonRequirement
+  prescribingComment: 'notRequested' | 'required' | 'optional'
+}
+
 export interface SourceCapabilities {
   repeatPrescriptionsEnabled: boolean
   appointmentsEnabled: boolean
@@ -16,6 +23,7 @@ export interface SourceCapabilities {
   practiceAppointmentsSupported: boolean
   practiceMedicalRecordSupported: boolean
   practiceRepeatPrescriptionsSupported: boolean
+  inputRequirements: PracticeInputRequirements
 }
 
 export function isServiceAvailable(

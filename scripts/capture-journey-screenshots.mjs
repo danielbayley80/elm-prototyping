@@ -44,6 +44,10 @@ const mockCapabilities = {
   practiceAppointmentsSupported: true,
   practiceMedicalRecordSupported: true,
   practiceRepeatPrescriptionsSupported: true,
+  inputRequirements: {
+    appointmentBookingReason: 'required',
+    prescribingComment: 'optional',
+  },
 }
 
 const connectedSource = {
@@ -256,6 +260,30 @@ async function capture(browser, baseUrl, name, route, storagePayload, options = 
   await context.close()
 }
 
+async function captureWithActions(browser, baseUrl, name, route, storagePayload, actions, options = {}) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  await context.addInitScript((value) => {
+    localStorage.setItem('elm-health-prototype', JSON.stringify(value))
+  }, storagePayload)
+  const page = await context.newPage()
+
+  await page.goto(`${baseUrl}${route}`, { waitUntil: 'domcontentloaded' })
+  if (options.waitFor) {
+    await page.getByText(options.waitFor, { exact: false }).first().waitFor({ timeout: 15000 })
+  }
+  await actions(page)
+  if (options.waitAfter) {
+    await page.getByText(options.waitAfter, { exact: false }).first().waitFor({ timeout: 15000 })
+  } else {
+    await page.waitForTimeout(400)
+  }
+
+  const file = path.join(outDir, `${name}.png`)
+  await page.screenshot({ path: file, fullPage: options.fullPage ?? false })
+  console.log(`Saved ${file}`)
+  await context.close()
+}
+
 async function main() {
   const baseUrl = await resolveBaseUrl()
   console.log(`Using ${baseUrl}`)
@@ -316,6 +344,155 @@ async function main() {
     fullPage: true,
     waitFor: 'Edit access permissions',
   })
+
+  const medicalRecordsState = {
+    ...connectedState,
+    shares: [],
+    pendingShare: null,
+    lpaHealthWelfareActive: true,
+  }
+  await capture(browser, baseUrl, '17-medical-records', '/healthcare/records', medicalRecordsState, {
+    fullPage: true,
+    waitFor: 'Source-specific record content',
+  })
+
+  const appointmentsState = {
+    ...connectedState,
+    shares: [],
+    pendingShare: null,
+    lpaHealthWelfareActive: true,
+  }
+
+  await capture(browser, baseUrl, '18-appointments-list', '/healthcare/appointments', appointmentsState, {
+    fullPage: true,
+    waitFor: 'Upcoming',
+  })
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '19-appointments-book-search',
+    '/healthcare/appointments',
+    appointmentsState,
+    async (page) => {
+      await page.getByRole('button', { name: 'Book appointment' }).click()
+    },
+    { waitFor: 'Upcoming', waitAfter: 'Find available slots' },
+  )
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '20-appointments-book-slots',
+    '/healthcare/appointments',
+    appointmentsState,
+    async (page) => {
+      await page.getByRole('button', { name: 'Book appointment' }).click()
+      await page.getByRole('button', { name: 'Find available slots' }).click()
+    },
+    { waitFor: 'Upcoming', waitAfter: 'slots from' },
+  )
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '21-appointments-book-details',
+    '/healthcare/appointments',
+    appointmentsState,
+    async (page) => {
+      await page.getByRole('button', { name: 'Book appointment' }).click()
+      await page.getByRole('button', { name: 'Find available slots' }).click()
+      await page.getByText('slots from').waitFor({ timeout: 15000 })
+      await page.locator('input[type="radio"]').first().check()
+      await page.getByRole('button', { name: 'Continue' }).click()
+    },
+    { waitFor: 'Upcoming', waitAfter: 'Reason for appointment' },
+  )
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '22-appointments-cancel',
+    '/healthcare/appointments',
+    appointmentsState,
+    async (page) => {
+      await page.getByRole('button', { name: 'Cancel' }).first().click()
+    },
+    { waitFor: 'Upcoming', waitAfter: 'Confirm cancellation' },
+  )
+
+  const prescriptionsState = {
+    ...connectedState,
+    shares: [],
+    pendingShare: null,
+    lpaHealthWelfareActive: true,
+  }
+
+  await capture(browser, baseUrl, '24-prescriptions-list', '/healthcare/prescriptions', prescriptionsState, {
+    fullPage: true,
+    waitFor: 'Prescriptions',
+  })
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '25-prescriptions-order',
+    '/healthcare/prescriptions',
+    prescriptionsState,
+    async (page) => {
+      await page.getByRole('button', { name: 'Order repeat' }).first().click()
+    },
+    { waitFor: 'Ramipril', waitAfter: 'Confirm order' },
+  )
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '26-prescriptions-mark-collected',
+    '/healthcare/prescriptions',
+    prescriptionsState,
+    async (page) => {
+      await page.getByRole('button', { name: 'Mark as collected' }).first().click()
+    },
+    { waitFor: 'Metformin', waitAfter: 'Mark as collected' },
+  )
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '27-nhs-login-linkage-key',
+    '/healthcare/connect/nhs',
+    pendingWithConsent,
+    async (page) => {
+      await page.getByRole('button', { name: 'I have details from my GP' }).click()
+    },
+    { waitFor: 'Account ID' },
+  )
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '28-disconnect-source',
+    '/healthcare/sources',
+    connectedState,
+    async (page) => {
+      await page.getByRole('button', { name: 'Disconnect' }).first().click()
+    },
+    { waitFor: 'NHS GP', waitAfter: 'Disconnect and keep data' },
+  )
+
+  await captureWithActions(
+    browser,
+    baseUrl,
+    '29-medical-record-detail',
+    '/healthcare/records',
+    medicalRecordsState,
+    async (page) => {
+      await page.getByText('Showing 21 of 21').waitFor({ timeout: 15000 })
+      await page.locator('table tbody tr').first().click()
+    },
+    { waitFor: 'Source-specific record content', waitAfter: 'Added to ELM' },
+  )
 
   await browser.close()
   console.log('Done.')

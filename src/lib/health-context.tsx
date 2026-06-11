@@ -7,7 +7,11 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { Appointment } from '../mocks/appointments'
+import type { Appointment, BookAppointmentParams } from '../types/appointment'
+import {
+  computeDurationMinutes,
+  formatAppointmentType,
+} from '../types/appointment'
 import { mockAppointments } from '../mocks/appointments'
 import type { GpCredentials } from '../mocks/nhs-login'
 import {
@@ -15,8 +19,8 @@ import {
   mockConvenetPatientId,
 } from '../mocks/nhs-login'
 import { mockHealthShares, mockShareRecipients } from '../mocks/health-sharing'
-import type { Prescription } from '../mocks/prescriptions'
-import { mockPrescriptions } from '../mocks/prescriptions'
+import type { Prescription, OrderPrescriptionParams } from '../types/prescription'
+import { mockPrescriptions, simulateGpStatusPoll } from '../mocks/prescriptions'
 import type {
   ConnectedHealthSource,
   DisconnectMode,
@@ -61,9 +65,10 @@ interface HealthContextValue {
   revokeShare: (shareId: string) => void
   showToast: (message: string) => void
   clearToast: () => void
-  bookAppointment: (appointment: Appointment) => void
-  cancelAppointment: (id: string) => void
-  orderPrescription: (id: string) => void
+  bookAppointment: (params: BookAppointmentParams) => void
+  cancelAppointment: (id: string, cancellationReason: string) => void
+  orderPrescription: (params: OrderPrescriptionParams) => void
+  markPrescriptionCollected: (id: string, note?: string) => void
 }
 
 const STORAGE_KEY = 'elm-health-prototype'
@@ -121,6 +126,75 @@ function migrateShares(shares: HealthShare[]): HealthShare[] {
   })
 }
 
+const defaultInputRequirements = {
+  appointmentBookingReason: 'required' as const,
+  prescribingComment: 'optional' as const,
+}
+
+function migrateCapabilities(
+  caps?: import('../types/source-capabilities').SourceCapabilities,
+): import('../types/source-capabilities').SourceCapabilities | undefined {
+  if (!caps) return caps
+  return {
+    ...caps,
+    inputRequirements: caps.inputRequirements ?? defaultInputRequirements,
+  }
+}
+
+function migrateAppointments(appointments: Appointment[]): Appointment[] {
+  return appointments.map((a) => {
+    const legacy = a as Appointment & { notes?: string }
+    const startTime = a.startTime ?? a.dateTime
+    const endTime =
+      a.endTime ??
+      new Date(
+        new Date(startTime).getTime() + (a.duration ?? 15) * 60_000,
+      ).toISOString()
+    const slotTypeName = a.slotTypeName ?? a.type
+    return {
+      ...a,
+      slotTypeName,
+      sessionType: a.sessionType,
+      startTime,
+      endTime,
+      dateTime: startTime,
+      duration: a.duration ?? computeDurationMinutes(startTime, endTime),
+      type: a.type ?? formatAppointmentType(slotTypeName, a.sessionType),
+      bookingReason: a.bookingReason ?? legacy.notes,
+    }
+  })
+}
+
+function migratePrescriptions(prescriptions: Prescription[]): Prescription[] {
+  return prescriptions.map((p) => {
+    const legacy = p as Prescription & {
+      lastOrdered?: string
+      status?: string
+    }
+    const migrated: Prescription = {
+      ...p,
+      lastIssued: p.lastIssued ?? legacy.lastOrdered ?? p.lastIssued,
+    }
+    if (!migrated.gpOrderStatus && legacy.status) {
+      if (legacy.status === 'ordered') migrated.gpOrderStatus = 'requested'
+      if (legacy.status === 'ready') migrated.gpOrderStatus = 'approved'
+      if (legacy.status === 'collected') {
+        migrated.gpOrderStatus = 'approved'
+        migrated.manualCollectedAt =
+          migrated.manualCollectedAt ?? new Date().toISOString()
+      }
+    }
+    return migrated
+  })
+}
+
+function migrateConnectedSources(sources: ConnectedHealthSource[]): ConnectedHealthSource[] {
+  return sources.map((s) => ({
+    ...s,
+    capabilities: migrateCapabilities(s.capabilities),
+  }))
+}
+
 const defaultSyncPreferences: SyncPreferences = {
   appointmentsToCalendar: false,
   prescriptionsToCalendar: false,
@@ -139,7 +213,9 @@ function migrateLegacyConnection(parsed: Record<string, unknown>): HealthConnect
 
   if (Array.isArray(legacy.connectedSources)) {
     return {
-      connectedSources: legacy.connectedSources as ConnectedHealthSource[],
+      connectedSources: migrateConnectedSources(
+        legacy.connectedSources as ConnectedHealthSource[],
+      ),
       syncPreferences: (legacy.syncPreferences as SyncPreferences) ?? defaultSyncPreferences,
       pending: (legacy.pending as HealthConnection['pending']) ?? null,
     }
@@ -181,10 +257,14 @@ function loadState(): {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
+      const connection = migrateLegacyConnection(parsed)
       return {
-        connection: migrateLegacyConnection(parsed),
-        appointments: parsed.appointments ?? mockAppointments,
-        prescriptions: parsed.prescriptions ?? mockPrescriptions,
+        connection: {
+          ...connection,
+          connectedSources: migrateConnectedSources(connection.connectedSources),
+        },
+        appointments: migrateAppointments(parsed.appointments ?? mockAppointments),
+        prescriptions: migratePrescriptions(parsed.prescriptions ?? mockPrescriptions),
         shares: migrateShares(parsed.shares ?? mockHealthShares),
         lpaHealthWelfareActive: parsed.lpaHealthWelfareActive ?? true,
         pendingShare: migratePendingShare(parsed.pendingShare as PendingShare | null),
@@ -535,8 +615,27 @@ export function HealthProvider({ children }: { children: ReactNode }) {
   )
 
   const bookAppointment = useCallback(
-    (appointment: Appointment) => {
-      setAppointments((prev) => [...prev, appointment])
+    (params: BookAppointmentParams) => {
+      const { slot, bookingReason } = params
+      const newAppt: Appointment = {
+        id: `apt-${Date.now()}`,
+        appointmentId: `cnv-apt-${Date.now()}`,
+        slotTypeName: slot.slotTypeName,
+        sessionType: slot.sessionType,
+        type: formatAppointmentType(slot.slotTypeName, slot.sessionType),
+        clinician: slot.clinicianDisplayName,
+        location: slot.locationName,
+        locationAddress: slot.locationAddress,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        dateTime: slot.startTime,
+        duration: computeDurationMinutes(slot.startTime, slot.endTime),
+        status: 'booked',
+        canBeCancelled: true,
+        bookingDate: new Date().toISOString(),
+        bookingReason,
+      }
+      setAppointments((prev) => [...prev, newAppt])
       if (connection.syncPreferences.appointmentsToCalendar) {
         showToast('Appointment booked and added to your ELM calendar')
       } else {
@@ -547,9 +646,18 @@ export function HealthProvider({ children }: { children: ReactNode }) {
   )
 
   const cancelAppointment = useCallback(
-    (id: string) => {
+    (id: string, cancellationReason: string) => {
       setAppointments((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: 'cancelled' as const } : a)),
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                status: 'cancelled' as const,
+                canBeCancelled: false,
+                cancellationReason,
+              }
+            : a,
+        ),
       )
       showToast('Appointment cancelled')
     },
@@ -557,25 +665,61 @@ export function HealthProvider({ children }: { children: ReactNode }) {
   )
 
   const orderPrescription = useCallback(
-    (id: string) => {
+    (params: OrderPrescriptionParams) => {
+      const now = new Date().toISOString()
+      const orderId = `cnv-rx-ord-${Date.now()}`
+
+      setPrescriptions((prev) =>
+        prev.map((p) =>
+          p.id === params.prescriptionId
+            ? {
+                ...p,
+                gpOrderStatus: 'requested' as const,
+                prescriptionOrderId: orderId,
+                orderRequestDate: now,
+                orderPharmacyName: params.pharmacyName,
+                orderPharmacyOds: params.pharmacyOds,
+                orderComment: params.comment,
+                lastIssued: now,
+              }
+            : p,
+        ),
+      )
+
+      simulateGpStatusPoll((id, status) => {
+        setPrescriptions((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, gpOrderStatus: status } : p,
+          ),
+        )
+        showToast('Your GP has approved your repeat prescription request')
+      }, params.prescriptionId)
+
+      if (connection.syncPreferences.prescriptionsToCalendar) {
+        showToast('Repeat prescription ordered — due date added to your ELM calendar')
+      } else {
+        showToast('Repeat prescription ordered — awaiting GP approval')
+      }
+    },
+    [connection.syncPreferences.prescriptionsToCalendar, showToast],
+  )
+
+  const markPrescriptionCollected = useCallback(
+    (id: string, note?: string) => {
       setPrescriptions((prev) =>
         prev.map((p) =>
           p.id === id
             ? {
                 ...p,
-                status: 'ordered' as const,
-                lastOrdered: new Date().toISOString(),
+                manualCollectedAt: new Date().toISOString(),
+                manualCollectedNote: note,
               }
             : p,
         ),
       )
-      if (connection.syncPreferences.prescriptionsToCalendar) {
-        showToast('Repeat prescription ordered — due date added to your ELM calendar')
-      } else {
-        showToast('Repeat prescription ordered successfully')
-      }
+      showToast('Prescription marked as collected')
     },
-    [connection.syncPreferences.prescriptionsToCalendar, showToast],
+    [showToast],
   )
 
   const value = useMemo(
@@ -607,6 +751,7 @@ export function HealthProvider({ children }: { children: ReactNode }) {
       bookAppointment,
       cancelAppointment,
       orderPrescription,
+      markPrescriptionCollected,
     }),
     [
       connection,
@@ -636,6 +781,7 @@ export function HealthProvider({ children }: { children: ReactNode }) {
       bookAppointment,
       cancelAppointment,
       orderPrescription,
+      markPrescriptionCollected,
     ],
   )
 

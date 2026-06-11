@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Calendar, Heart, Pill, Shield } from 'lucide-react'
 import { HealthcareConnectPrompt } from '../healthcare/HealthcareConnectPrompt'
 import { useHealth, isConnected } from '../../lib/health-context'
+import { canOrderPrescription } from '../../types/prescription'
 import { formatDateTime } from '../../lib/utils'
 
 export function HealthcareCard() {
@@ -11,7 +12,7 @@ export function HealthcareCard() {
     .filter((a) => a.status === 'booked')
     .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime())[0]
 
-  const medsDue = prescriptions.filter((p) => p.status === 'available').length
+  const medsDue = prescriptions.filter((p) => canOrderPrescription(p)).length
 
   if (!isConnected(connection)) {
     return <HealthcareConnectPrompt />
@@ -59,7 +60,7 @@ export function HealthcareCard() {
 export function KpiCards() {
   const { connection, prescriptions } = useHealth()
   const medsDue = isConnected(connection)
-    ? prescriptions.filter((p) => p.status === 'available').length
+    ? prescriptions.filter((p) => canOrderPrescription(p)).length
     : 2
 
   return (
